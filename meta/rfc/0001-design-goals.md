@@ -1,4 +1,4 @@
-# RFC 0000: Design goals
+# [RFC #0001]: Design goals
 Status: **Proposal**
 
 ## Abstract
@@ -83,3 +83,6 @@ learn should be as little as possible.
 
 The protocols used by this projects should be as portable as possible.
 The initial implementation in this repo does not.
+
+
+[RFC #0001]: https://github.com/Student-Team-Projects/virtual-network/pull/1
