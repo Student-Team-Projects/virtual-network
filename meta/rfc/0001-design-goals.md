@@ -84,5 +84,12 @@ learn should be as little as possible.
 The protocols used by this projects should be as portable as possible.
 The initial implementation in this repo does not.
 
+### Version compatibility
+
+Peers in the network might be running different client program versions.
+The protocol design should account for this.
+
+The initial prototype implementation does not have to be backwards compatible.
+
 
 [RFC #0001]: https://github.com/Student-Team-Projects/virtual-network/pull/1
