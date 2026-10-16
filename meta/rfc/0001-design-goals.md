@@ -69,6 +69,16 @@ There might be periods where no peers are online and the IP addresses of all
 peers might change during such periods. The network should still restart after
 that.
 
+### Network fragmentation
+
+Due to different network environments, the connections between active nodes
+might not form a clique. For example, a group of peers might temporarily only be
+able to connect via LAN, but not via the remaining nodes via WAN.
+
+The client implementation MUST NOT assume that:
+- the connectivity relation is transient,
+- the connections graph is connected.
+
 ### Security
 
 All connections must be authenticated.
