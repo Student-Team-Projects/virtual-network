@@ -76,7 +76,7 @@ might not form a clique. For example, a group of peers might temporarily only be
 able to connect via LAN, but not via the remaining nodes via WAN.
 
 The client implementation MUST NOT assume that:
-- the connectivity relation is transient,
+- the connectivity relation is transitive,
 - the connections graph is connected.
 
 ### Security
