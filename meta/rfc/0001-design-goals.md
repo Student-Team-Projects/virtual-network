@@ -19,7 +19,7 @@ everything from scratch, where possible.
 
 ### Prioritize ease of use
 
-The initial setup and peer enrollment processes should not require understating
+The initial setup and peer enrollment processes should not require understanding
 advanced networking concepts.
 Ideally, it should not be more involved than using a cloud hosted VPN.
 
@@ -39,7 +39,7 @@ one or more layers of NAT) or which cannot open incoming ports, should be able
 to join the network.
 
 Some connections will by necessity require a server with a public IP address
-(for example if both peers are both behind NAT and hole punching doesn't work,
+(for example if both peers are behind NAT and hole punching doesn't work,
 a relay server might be impossible to avoid).
 
 ### Infrastructure can be shared by many networks
@@ -91,8 +91,8 @@ learn should be as little as possible.
 
 ### Portability
 
-The protocols used by this projects should be as portable as possible.
-The initial implementation in this repo does not.
+The protocols used by this project should be as portable as possible.
+The initial implementation in this repo does not have to be.
 
 ### Version compatibility
 
