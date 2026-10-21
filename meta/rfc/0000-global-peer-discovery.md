@@ -1,4 +1,4 @@
-# RFC #0000: Global Peer discovery
+# [RFC #0002]: Global Peer discovery
 
 Status: **Exploring**
 
@@ -156,6 +156,7 @@ We would still get the custom record type benefits of Amino DHT.
 [^1]: By *connection address* we mean all information necessary to reach a node from the Internet, perhaps through intermediaries (relays).
 
 [RFC #0001]: ./0001-design-goals.md
+[RFC #0002]: https://github.com/Student-Team-Projects/virtual-network/pull/2
 [Kademlia DHT]: https://docs.ipfs.tech/concepts/dht/#kademlia
 [libp2p Kademlia DHT]: https://libp2p.io/docs/dht/
 [Peer ID]: https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md
