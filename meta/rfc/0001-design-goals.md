@@ -1,5 +1,5 @@
 # [RFC #0001]: Design goals
-Status: **Proposal**
+Status: **Accepted**
 
 ## Abstract
 Introduction of the initial project design goals
