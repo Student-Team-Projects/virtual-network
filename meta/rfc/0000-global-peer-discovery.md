@@ -57,9 +57,9 @@ It then queries that node for entry with key *PID A*, performs a cryptographic
 check to confirm the record has not been forged, a hopefully received the value
 stored for that key - the *connection address* announced by node *A*.
 
-## Existing public DHTs
+## Possible DHT swarm choices
 
-We are considering three options for the public DHT used for global peer
+We are considering three options for the public DHT swarm used for global peer
 discovery:
 
 ### Amino (IPFS Kademlia DHT)
@@ -70,7 +70,7 @@ A large public DHT, based on [libp2p Kademlia DHT], which supports the following
 record types:
 1. Peer Records: [Peer ID] -> [multiaddress]
 2. [Provider Records]: CID (Content ID, a somewhat arbitrary key) -> append only
-list of [Peer ID]
+  list of [Peer ID]
 3. [IPNS Routing Records]: Public key *x* -> CID, signed with *x*
 
 The Amino DHT can also be used to discover [Circuit Relay v2] servers,
