@@ -91,7 +91,7 @@ number
 This DHT could be made to store the record types supported by the Amino DHT and
 any other custom record types which we can imagine.
 
-## Possible uses of these DHTs in this project
+## Possible uses of these DHTs in this project - considered options
 
 ### Amino DHT
 
@@ -121,8 +121,8 @@ providers for this CID.
   - Finding public [Circuit Relay v2] servers
 - Custom DHT used for:
   - Storing signed and encrypted VPN peers lists and VPN metadata records
-- **pro** (Custom DHT): Arbitrary record types can support signed and encrypted VPN peers
-  lists and VPN metadata records
+- **pro** (Custom DHT): Arbitrary record types can support signed and encrypted
+  VPN peers lists and VPN metadata records
 - **pro** (Custom DHT): Good extensibility in the future
 - **pro**: libp2p can be used for everything
 - **pro** (Amino DHT): Access to public [Circuit Relay v2] servers
@@ -143,17 +143,88 @@ providers for this CID.
   - Finding public [Circuit Relay v2] servers
 - BitTorrent Mainline DHT used for:
   - Storing signed and encrypted VPN peers lists and VPN metadata records
-- **pro** (BitTorrent): Arbitrary record types can support signed and encrypted VPN peers
-  lists and VPN metadata records
+- **pro** (BitTorrent): Arbitrary record types can support signed and encrypted
+  VPN peers lists and VPN metadata records
 - **pro** (Amino DHT): Access to public [Circuit Relay v2] servers
 - **con**: Using two DHTs complicates the system, especially with two different
   standards. Amino DHT used only for relays
 
 ### BitTorrent Mainline DHT + another public relay network?
-Perhaps there is another public relay network, less restrictive than [Circuit Relay v2]?
+Perhaps there is another public relay network, less restrictive than
+[Circuit Relay v2]?
 We would still get the custom record type benefits of Amino DHT.
 
-[^1]: By *connection address* we mean all information necessary to reach a node from the Internet, perhaps through intermediaries (relays).
+## Proposed choice - Amino DHT only
+
+We suggest choosing the first option, that is using only Amino DHT for global
+peer discovery. It's public infrastructure and the libp2p libraries provide all
+resources needed for peer discovery to function.
+
+Each virtual network will have a specific CID `cid`, known by all peers in the
+network.
+Each peer in the network will have a unique [Peer ID].
+Peers already connected to the network will advertize themselves as providers
+for `cid`.
+Peers wanting to join the network will query provider records for `cid`.
+
+### Connected peer advertisements
+
+A peer connected to the virtual network will try to keep an active reservation
+with a [Circuit Relay v2] server.
+The Amino DHT can be used to discover public relay servers.
+We might also allow users to configure custom relay servers.
+
+The result of a relay reservation is a [multiaddress] containing the public IP
+address, port and [Peer ID] of the relay server and the [Peer ID] of the
+virtual network peer.
+
+The peer will then publish a [Provider Record] mapping
+the virtual network `cid` to its [Peer ID]. If possible, it will only announce
+its relay [multiaddress] here, to not reveal its public IP addresses to unknown
+nodes.
+
+It might not be necessary to advertize all peers connected to the virtual
+network. If peers **A** and **B** are both connected to the virtual network
+and have a direct connection open between them, it's enough only for peer **A**
+to publish a record of type [Provider Record]. After a new peer **C** connects
+to peer **A**, peer **A** can then send the [multiaddress] of peer **B** to
+peer **C**. The node publishing a provider records might be selected based on
+its reachability and stability.
+
+### Peer discovery
+
+When a peer wishes to join the network, it attempt to connect to previously
+known peers via their cached addresses.
+Simultaneously, it will query the DHT to get the provider list for `cid`.
+It must be taken into account that the list of [Provider Records] it receives
+might:
+- be empty,
+- contain fabricated records published by unauthorized peers,
+- contain records for peers which are no longer connected to the network.
+
+If it finds any provider records, it will attempt to establish connections with
+them, using the [multiaddress]-es associated with the records.
+
+The connection should begin with peer authentication, to confirm that the
+connecting peer is allowed to join the network.
+The connection should be upgraded to a direct connection only after
+the connecting peer authenticates successfully, again to avoid leaking peer
+IP addresses.
+
+After a peer connects to at least one peer in the virtual network,
+it can then ask it for a list of other connected peers, to establish direct
+connections with them.
+
+To avoid virtual network partitions, peers connected to the network should still
+perform peer discovery using the DHT periodically.
+A partition is most likely when two peers try to connect to an empty network at
+the same time and they both still think that there are no other peers in the
+network. For this reason it might be reasonable to perform peer rediscovery
+more frequently just after joining a network.
+
+
+[^1]: By *connection address* we mean all information necessary to reach a node
+from the Internet, perhaps through intermediaries (relays).
 
 [RFC #0001]: ./0001-design-goals.md
 [RFC #0002]: https://github.com/Student-Team-Projects/virtual-network/pull/2
@@ -161,6 +232,7 @@ We would still get the custom record type benefits of Amino DHT.
 [libp2p Kademlia DHT]: https://libp2p.io/docs/dht/
 [Peer ID]: https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md
 [multiaddress]: https://github.com/libp2p/specs/blob/master/addressing/README.md
+[Provider Record]: https://specs.ipfs.tech/routing/kad-dht/#provider-record-routing
 [Provider Records]: https://specs.ipfs.tech/routing/kad-dht/#provider-record-routing
 [IPNS Routing Records]: https://specs.ipfs.tech/ipns/ipns-record/#routing-record
 [Circuit Relay v2]: https://github.com/libp2p/specs/blob/master/relay/circuit-v2.md
