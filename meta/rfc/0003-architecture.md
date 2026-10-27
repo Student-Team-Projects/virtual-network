@@ -1,4 +1,4 @@
-# RFC #0000: Architecture
+# [RFC #0003]: Architecture
 
 Status: **Proposal**
 
@@ -265,4 +265,5 @@ The UI communicates with the daemon by passing Rust structs directly through
 
 [RFC #0001]: ./0001-design-goals.md
 [RFC #0002]: ./0002-global-peer-discovery.md
+[RFC #0003]: https://github.com/Student-Team-Projects/virtual-network/pull/3
 [Circuit Relay v2]: https://github.com/libp2p/specs/blob/master/relay/circuit-v2.md
