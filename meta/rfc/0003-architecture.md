@@ -29,18 +29,18 @@ hard to work on in parallel.
 
 Therefore, I propose separating the code into six components:
 
-- **Core domain (`core`)**: the main app logic and shared traits, doesn't depend
-  on any other module.
-- **Virtual network interface (`tun`)**: creates and configures the OS virtual
-  network interface, depends on `core`.
-- **Control plane (`mesh`)**: manages DHT discovery, relays, hole punching, and
-  peer authentication, depends on `core`.
-- **Data plane (`router`)**: moves the IP packets between the virtual interface
-  and connected peers, depends on `core`.
-- **Daemon (`daemon`)**: the main background logic that initializes the
-  modules, stores state on disk, and coordinates everything.
-- **User interfaces (`cli`, `gui`)**: let the user create or join networks and
-  see the connection status.
+- Core: the main app logic and shared traits, doesn't depend on any other
+  module.
+- Driver: creates and configures the OS virtual network interface,
+  depends on `core`.
+- Mesh: manages DHT discovery, relays, hole punching, and peer
+  authentication, depends on `core`.
+- Router: moves the IP packets between the virtual interface and
+  connected peers, depends on `core`.
+- Daemon: the main background logic that initializes the modules, stores
+  state on disk, and coordinates everything.
+- UI: let the user create or join networks and see the connection
+  status.
 
 ## Language and technology choices
 
@@ -61,11 +61,11 @@ Rust is a good fit for the rest of the client as well:
 
 ## Components
 
-The modules are organized so that `tun`, `mesh`, and `router` depend only on
+The modules are organized so that `driver`, `mesh`, and `router` depend only on
 `core`, not on each other. Once `core` is agreed on, those three modules can be
 built and tested in parallel by different people.
 
-### 1. Core (`core`)
+### 1. Core
 
 Pure domain logic and shared interfaces with no I/O, no async runtime, and no
 OS-specific dependencies:
@@ -74,16 +74,13 @@ OS-specific dependencies:
   shared network secret, and deriving separate keys from it:
   - the `cid` used for Amino DHT provider records (see [RFC #0002]),
   - the key used to authenticate peers.
-- **Virtual IP addressing**: deterministically mapping a peer's `Peer ID` to a
-  virtual IPv4 address in the `100.64.0.0/10` subnet (and handling potential
-  address collisions).
 - **Packet inspection**: parsing raw IPv4 headers to read source and
   destination addresses, and classifying packets as unicast, broadcast,
   multicast, or invalid.
 - **Shared traits (`TunDevice` and `PeerLink`)**: the interfaces that connect
   the data plane to the OS network adapter and to peer connections.
 
-### 2. Virtual network interface (`tun`)
+### 2. Driver
 
 Implementations of the `TunDevice` trait:
 
@@ -96,7 +93,7 @@ Implementations of the `TunDevice` trait:
 Keeping `tun-rs` behind the `TunDevice` trait keeps OS-specific setup and
 privilege requirements out of the rest of the codebase.
 
-### 3. Control plane (`mesh`)
+### 3. Mesh
 
 Manages peer discovery, NAT traversal, and peer authentication using libp2p.
 It does not inspect or route user IP packets.
@@ -115,15 +112,15 @@ Its responsibilities follow [RFC #0002]:
   - exchanges lists of known connected peers with already-authenticated peers
   - attempts to reconnect to previously known peers using cached addresses
 - **Authentication before upgrade**: when a connection is established through a
-  relay, the control plane runs the authentication handshake first. Only after
-  both peers prove membership does it exchange direct addresses and attempt
-  hole punching to upgrade to a direct connection. This avoids leaking public
-  IP addresses to unauthorized parties.
-- **Producing `PeerLink`s**: once a peer is authenticated, the control plane
-  opens a packet stream to that peer, wraps it in a `PeerLink`, and emits a
+  relay, `mesh` runs the authentication handshake first. Only after both peers
+  prove membership does it exchange direct addresses and attempt hole punching
+  to upgrade to a direct connection. This avoids leaking public IP addresses to
+  unauthorized parties.
+- **Producing `PeerLink`s**: once a peer is authenticated, `mesh` opens a
+  packet stream to that peer, wraps it in a `PeerLink`, and emits a
   `PeerVerified` event to the daemon.
 
-### 4. Data plane (`router`)
+### 4. Router
 
 A switch that moves raw IP packets between a `TunDevice` and active
 `PeerLink`s:
@@ -144,21 +141,21 @@ A switch that moves raw IP packets between a `TunDevice` and active
 Because `router` depends only on `core` (for `TunDevice`, `PeerLink`, and
 packet parsing), it knows nothing about libp2p or OS drivers.
 
-### 5. Daemon (`daemon`)
+### 5. Daemon
 
 The central component that wires everything together:
 
 - loads and saves persistent files in a local data directory (the node's
   keypair, joined network configuration, and cached peer addresses for offline
   restarts as required by [RFC #0001])
-- initializes `tun`, `mesh`, and `router`
+- initializes `driver`, `mesh`, and `router`
 - runs the central event loop: when `mesh` reports a newly authenticated peer,
   the daemon registers its route in `router`; when a peer disconnects, it
   removes the route
 - exposes channels so the CLI or GUI can check the current status and run
   commands (`create`, `join`, `leave`)
 
-### 6. User interfaces (`cli`, `gui`)
+### 6. UI
 
 Frontends that let the user control the client:
 
@@ -171,7 +168,7 @@ Frontends that let the user control the client:
 Defining these four contracts up front allows all components to be built in
 parallel:
 
-### 1. `TunDevice` trait (implemented by `tun`, used by `router`)
+### 1. `TunDevice` trait (implemented by `driver`, used by `router`)
 
 - `recv(&self, buf: &mut [u8]) -> Result<usize>`: waits for the next outbound
   IPv4 packet from the OS virtual interface and copies it into `buf`, returning
@@ -195,13 +192,13 @@ Because `router` sits between the local OS and remote peers, both traits have
 send and receive methods to handle traffic in both directions:
 
 ```text
-Outgoing: [Local OS] -> tun.recv() -> [Router] -> peer_link.send_packet() -> [Internet]
-Incoming: [Internet] -> peer_link.recv_packet() -> [Router] -> tun.send() -> [Local OS]
+Outgoing: [Local OS] -> driver.recv() -> [Router] -> peer_link.send_packet() -> [Internet]
+Incoming: [Internet] -> peer_link.recv_packet() -> [Router] -> driver.send() -> [Local OS]
 ```
 
-### 3. Control plane channels (between `daemon` and `mesh`)
+### 3. Channels between `daemon` and `mesh`
 
-The daemon and control plane communicate through two async channels:
+The daemon and `mesh` communicate through two async channels:
 
 - **`MeshCommand`** (sent from `daemon` to `mesh`):
   - `Join(NetworkSecret)`: start announcing and looking up peers for this
@@ -219,7 +216,7 @@ The daemon and control plane communicate through two async channels:
   - `PeerLost(PeerId)`: all connections to this peer have closed, so its route
     should be removed.
 
-### 4. Daemon control interface (between `cli`/`gui` and `daemon`)
+### 4. Channels between `cli`/`gui` and `daemon`
 
 The UI communicates with the daemon by passing Rust structs directly through
 `tokio` channels:
