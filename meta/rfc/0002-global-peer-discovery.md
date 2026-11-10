@@ -152,7 +152,7 @@ providers for this CID.
 ### BitTorrent Mainline DHT + another public relay network?
 Perhaps there is another public relay network, less restrictive than
 [Circuit Relay v2]?
-We would still get the custom record type benefits of Amino DHT.
+We would still get the custom record type benefits of BitTorrent Mainline DHT.
 
 ## Proposed choice - Amino DHT only
 
