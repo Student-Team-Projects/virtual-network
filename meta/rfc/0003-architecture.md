@@ -77,12 +77,12 @@ OS-specific dependencies:
 - **Packet inspection**: parsing raw IPv4 headers to read source and
   destination addresses, and classifying packets as unicast, broadcast,
   multicast, or invalid.
-- **Shared traits (`TunDevice` and `PeerLink`)**: the interfaces that connect
+- **Shared traits (`DriverDevice` and `PeerLink`)**: the interfaces that connect
   the data plane to the OS network adapter and to peer connections.
 
 ### 2. Driver
 
-Implementations of the `TunDevice` trait:
+Implementations of the `DriverDevice` trait:
 
 - **OS TUN adapter**: uses `tun-rs` to create and configure the virtual
   interface and provide async packet read/write methods.
@@ -90,7 +90,7 @@ Implementations of the `TunDevice` trait:
   This allows running automated tests of the router and daemon on any machine
   without root or Administrator privileges.
 
-Keeping `tun-rs` behind the `TunDevice` trait keeps OS-specific setup and
+Keeping `tun-rs` behind the `DriverDevice` trait keeps OS-specific setup and
 privilege requirements out of the rest of the codebase.
 
 ### 3. Mesh
@@ -122,23 +122,23 @@ Its responsibilities follow [RFC #0002]:
 
 ### 4. Router
 
-A switch that moves raw IP packets between a `TunDevice` and active
+A switch that moves raw IP packets between a `DriverDevice` and active
 `PeerLink`s:
 
 - **Routing table**: maps each authenticated peer's virtual IP to its
   `PeerLink`. Updated by the daemon as peers connect and disconnect.
-- **Outbound (egress) path**: reads packets from `TunDevice`. Unicast packets
+- **Outbound (egress) path**: reads packets from `DriverDevice`. Unicast packets
   are queued for the matching peer; broadcast and multicast packets are cloned
   to all active peers.
 - **Inbound (ingress) path**: reads packets from each `PeerLink` and checks
   that the packet's source IP matches the sender's assigned virtual IP
-  (preventing IP spoofing) before writing the packet to `TunDevice`.
+  (preventing IP spoofing) before writing the packet to `DriverDevice`.
 - **Bounded queues**: each peer has a bounded outbound queue. If a peer's
   connection stalls, excess packets to that peer are dropped rather than
   buffered without limit, so one slow peer cannot affect traffic to other
   peers.
 
-Because `router` depends only on `core` (for `TunDevice`, `PeerLink`, and
+Because `router` depends only on `core` (for `DriverDevice`, `PeerLink`, and
 packet parsing), it knows nothing about libp2p or OS drivers.
 
 ### 5. Daemon
@@ -162,70 +162,6 @@ Frontends that let the user control the client:
 - **CLI**: terminal commands (`create`, `join`, `leave`, `status`, `peers`).
 - **GUI**: a simple window showing the network code, local virtual IP,
   connected peers, whether each peer is relayed or direct, and ping latency.
-
-## Interfaces between components
-
-Defining these four contracts up front allows all components to be built in
-parallel:
-
-### 1. `TunDevice` trait (implemented by `driver`, used by `router`)
-
-- `recv(&self, buf: &mut [u8]) -> Result<usize>`: waits for the next outbound
-  IPv4 packet from the OS virtual interface and copies it into `buf`, returning
-  the packet length.
-- `send(&self, packet: &[u8]) -> Result<()>`: writes an inbound IPv4 packet
-  received from a peer into the OS virtual interface.
-- `virtual_ip(&self) -> Ipv4Addr`: returns the local node's virtual IPv4
-  address.
-- `mtu(&self) -> u16`: returns the maximum packet size in bytes that the
-  interface accepts.
-
-### 2. `PeerLink` trait (implemented by `mesh`, used by `router`)
-
-- `send_packet(&self, packet: &[u8]) -> Result<()>`: sends a raw IPv4 packet
-  over the encrypted stream to this peer.
-- `recv_packet(&self, buf: &mut [u8]) -> Result<usize>`: waits for the next raw
-  IPv4 packet from this peer and writes it into `buf`.
-- `peer_id(&self) -> PeerId`: returns the verified `Peer ID` of the remote peer.
-
-Because `router` sits between the local OS and remote peers, both traits have
-send and receive methods to handle traffic in both directions:
-
-```text
-Outgoing: [Local OS] -> driver.recv() -> [Router] -> peer_link.send_packet() -> [Internet]
-Incoming: [Internet] -> peer_link.recv_packet() -> [Router] -> driver.send() -> [Local OS]
-```
-
-### 3. Channels between `daemon` and `mesh`
-
-The daemon and `mesh` communicate through two async channels:
-
-- **`MeshCommand`** (sent from `daemon` to `mesh`):
-  - `Join(NetworkSecret)`: start announcing and looking up peers for this
-    network on the DHT.
-  - `Leave`: leave the current network and close all peer connections.
-  - `Disconnect(PeerId)`: drop the connection to a specific peer.
-- **`MeshEvent`** (emitted by `mesh` to `daemon`):
-  - `RelayStatusChanged(Option<Multiaddr>)`: reports whether the node currently
-    has an active relay reservation and its relayed address.
-  - `PeerVerified { peer_id, link }`: a peer has passed authentication; hands
-    its `PeerLink` to the daemon so a route can be added in `router`.
-  - `PeerPathChanged { peer_id, is_direct, rtt }`: reports when a connection
-    upgrades from a relay to a direct link (or falls back), along with ping
-    latency.
-  - `PeerLost(PeerId)`: all connections to this peer have closed, so its route
-    should be removed.
-
-### 4. Channels between `cli`/`gui` and `daemon`
-
-The UI communicates with the daemon by passing Rust structs directly through
-`tokio` channels:
-
-- **`ClientCommand`** (sent from `cli`/`gui` to `daemon`): commands such as
-  `CreateNetwork`, `JoinNetwork(NetworkSecret)`, and `LeaveNetwork`.
-- **`ClientState`** (published by `daemon` to `cli`/`gui`): a state snapshot
-  containing the current virtual IP, relay status, and the list of connected
-  peers.
 
 ## Typical flows
 
@@ -251,13 +187,13 @@ The UI communicates with the daemon by passing Rust structs directly through
 1. An application (such as a game or `ping`) sends an IPv4 packet to
    `100.64.x.y`.
 2. The OS routes the packet to the virtual interface, where `router` reads it
-   via `TunDevice::recv`.
+   via `DriverDevice::recv`.
 3. `router` uses `core` to inspect the destination IP, looks up the recipient's
    `PeerLink` in its routing table (or selects all links for broadcast), and
    sends the packet.
 4. On the receiving machine, `router` reads the packet from `PeerLink`, verifies
    that the source IP matches the sender's virtual IP, and injects it into the
-   OS via `TunDevice::send`.
+   OS via `DriverDevice::send`.
 
 
 [RFC #0001]: ./0001-design-goals.md
