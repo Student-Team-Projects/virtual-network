@@ -183,6 +183,9 @@ the virtual network `cid` to its [Peer ID]. If possible, it will only announce
 its relay [multiaddress] here, to not reveal its public IP addresses to unknown
 nodes.
 
+Note: DHT nodes might still learn the public IP address.
+We consider this acceptable.
+
 It might not be necessary to advertize all peers connected to the virtual
 network. If peers **A** and **B** are both connected to the virtual network
 and have a direct connection open between them, it's enough only for peer **A**
