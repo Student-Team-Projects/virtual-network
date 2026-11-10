@@ -3,5 +3,25 @@
 version = 4
 
 [[package]]
-name = "vn_core"
+name = "virtual_network_cli"
+version = "0.1.0"
+
+[[package]]
+name = "virtual_network_core"
+version = "0.1.0"
+
+[[package]]
+name = "virtual_network_daemon"
+version = "0.1.0"
+
+[[package]]
+name = "virtual_network_driver"
+version = "0.1.0"
+
+[[package]]
+name = "virtual_network_mesh"
+version = "0.1.0"
+
+[[package]]
+name = "virtual_network_router"
 version = "0.1.0"
