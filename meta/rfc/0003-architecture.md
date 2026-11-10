@@ -1,6 +1,6 @@
 # [RFC #0003]: Architecture
 
-Status: **Proposal**
+Status: **Accepted**
 
 ## Abstract
 
