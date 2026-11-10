@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+virtual_network_core = { path = "../virtual_network_core" }
+virtual_network_driver = { path = "../virtual_network_driver" }
+virtual_network_mesh = { path = "../virtual_network_mesh" }
+virtual_network_router = { path = "../virtual_network_router" }
