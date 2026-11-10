@@ -1,6 +1,6 @@
 # [RFC #0002]: Global Peer discovery
 
-Status: **Exploring**
+Status: **Accepted**
 
 ## Abstract
 
