@@ -20,27 +20,27 @@ const MAX_IFNAME_LEN: usize = 15;
 /// when the driver is dropped. Creating it requires root or `CAP_NET_ADMIN`.
 pub struct TunDriver {
     device: AsyncDevice,
-    ipv4: Ipv4Addr,
+    ipv4_address: Ipv4Addr,
 }
 
 impl TunDriver {
-    /// Creates the TUN interface `name` with address `ipv4` inside `network`.
+    /// Creates the TUN interface `name` with address `ipv4_address` inside `network`.
     ///
     /// The kernel routes every destination inside `network` into this
     /// interface.
-    pub fn new(name: &str, ipv4: Ipv4Addr, network: &VirtualNetwork) -> anyhow::Result<Self> {
+    pub fn new(name: &str, ipv4_address: Ipv4Addr, network: &VirtualNetwork) -> anyhow::Result<Self> {
         ensure!(
             !name.is_empty() && name.len() <= MAX_IFNAME_LEN,
             "interface name {name:?} must be 1..={MAX_IFNAME_LEN} bytes"
         );
         ensure!(
-            network.is_host(ipv4),
-            "{ipv4} is not a host address in the virtual network {network}"
+            network.is_host(ipv4_address),
+            "{ipv4_address} is not a host address in the virtual network {network}"
         );
 
         let device = DeviceBuilder::new()
             .name(name)
-            .ipv4(ipv4, network.prefix_len(), None)
+            .ipv4(ipv4_address, network.prefix_len(), None)
             .mtu(TUN_MTU)
             .build_async()
             .map_err(|err| match err.kind() {
@@ -51,7 +51,7 @@ impl TunDriver {
                     .context(format!("failed to create TUN interface {name}")),
             })?;
 
-        Ok(TunDriver { device, ipv4 })
+        Ok(TunDriver { device, ipv4_address })
     }
 
     /// Returns the interface name as reported by the kernel.
@@ -102,6 +102,6 @@ impl DeviceDriver for TunDriver {
     }
 
     fn virtual_ipv4(&self) -> Ipv4Addr {
-        self.ipv4
+        self.ipv4_address
     }
 }
