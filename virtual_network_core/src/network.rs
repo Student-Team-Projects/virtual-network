@@ -26,28 +26,28 @@ impl VirtualNetwork {
 
         let result = Self { network, prefix_len };
         ensure!(
-            u32::from(network) & !result.mask() == 0,
+            (u32::from(network) & !result.mask()) == 0,
             "{network}/{prefix_len} has host bits set"
         );
         Ok(result)
     }
 
-    /// The network address, e.g. `100.64.0.0`.
+    /// The network address, e.g. `100.64.0.0` for `100.64.0.0/24`.
     pub fn network(&self) -> Ipv4Addr {
         self.network
     }
 
-    /// The prefix length, e.g. `10`.
+    /// The prefix length, e.g. `24` for `100.64.0.0/24`.
     pub fn prefix_len(&self) -> u8 {
         self.prefix_len
     }
 
-    /// The subnet mask, e.g. `255.192.0.0`.
+    /// The subnet mask, e.g. `255.255.255.0` for a `/24`.
     pub fn netmask(&self) -> Ipv4Addr {
         Ipv4Addr::from(self.mask())
     }
 
-    /// The subnet broadcast address, e.g. `100.127.255.255`.
+    /// The subnet broadcast address, e.g. `100.64.0.255` for `100.64.0.0/24`.
     pub fn broadcast(&self) -> Ipv4Addr {
         Ipv4Addr::from(u32::from(self.network) | !self.mask())
     }
@@ -80,17 +80,27 @@ mod tests {
     use super::*;
 
     fn net() -> VirtualNetwork {
-        VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 0), 10).unwrap()
+        VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 0), 24).unwrap()
     }
 
     #[test]
     fn derived_addresses() {
         let net = net();
         assert_eq!(net.network(), Ipv4Addr::new(100, 64, 0, 0));
-        assert_eq!(net.prefix_len(), 10);
-        assert_eq!(net.to_string(), "100.64.0.0/10");
+        assert_eq!(net.prefix_len(), 24);
+        assert_eq!(net.to_string(), "100.64.0.0/24");
+        assert_eq!(net.netmask(), Ipv4Addr::new(255, 255, 255, 0));
+        assert_eq!(net.broadcast(), Ipv4Addr::new(100, 64, 0, 255));
+    }
+
+    /// The mask math must also work when the prefix doesn't end on an octet.
+    #[test]
+    fn unaligned_prefix() {
+        let net = VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 0), 10).unwrap();
         assert_eq!(net.netmask(), Ipv4Addr::new(255, 192, 0, 0));
         assert_eq!(net.broadcast(), Ipv4Addr::new(100, 127, 255, 255));
+        assert!(net.is_host(Ipv4Addr::new(100, 100, 0, 1)));
+        assert!(!net.contains(Ipv4Addr::new(100, 128, 0, 0)));
     }
 
     #[test]
@@ -102,8 +112,8 @@ mod tests {
 
     #[test]
     fn rejects_host_bits() {
-        assert!(VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 1), 10).is_err());
-        assert!(VirtualNetwork::new(Ipv4Addr::new(100, 65, 0, 0), 10).is_err());
+        assert!(VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 1), 24).is_err());
+        assert!(VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 128), 24).is_err());
     }
 
     #[test]
@@ -111,12 +121,12 @@ mod tests {
         let net = net();
 
         assert!(net.is_host(Ipv4Addr::new(100, 64, 0, 1)));
-        assert!(net.is_host(Ipv4Addr::new(100, 127, 255, 254)));
+        assert!(net.is_host(Ipv4Addr::new(100, 64, 0, 254)));
 
         assert!(net.contains(net.network()) && !net.is_host(net.network()));
         assert!(net.contains(net.broadcast()) && !net.is_host(net.broadcast()));
 
-        assert!(!net.contains(Ipv4Addr::new(100, 128, 0, 1)));
+        assert!(!net.contains(Ipv4Addr::new(100, 64, 1, 1)));
         assert!(!net.contains(Ipv4Addr::new(100, 63, 255, 255)));
         assert!(!net.is_host(Ipv4Addr::new(10, 0, 0, 1)));
     }
