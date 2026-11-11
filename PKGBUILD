@@ -43,3 +43,4 @@ package() {
   install -Dm755 "target/release/virtual_network_daemon" "${pkgdir}/usr/bin/virtual_network_daemon"
   install -Dm644 "virtual_network.service" "${pkgdir}/usr/lib/systemd/system/virtual_network.service"
 }
+
