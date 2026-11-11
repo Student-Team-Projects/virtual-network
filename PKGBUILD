@@ -8,7 +8,9 @@ url="https://github.com/Student-Team-Projects/virtual-network"
 license=('GPL-3.0-or-later')
 depends=('gcc-libs')
 makedepends=('cargo' 'git')
-source=("$(_pkgname)::git+${url}.git")
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+source=("${_pkgname}::git+${url}.git")
 sha256sums=('SKIP')
 
 pkgver() {
