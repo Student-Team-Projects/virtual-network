@@ -1,6 +1,6 @@
+use async_trait::async_trait;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 #[async_trait]
@@ -30,7 +30,7 @@ pub struct MeshConfig {
     pub virtual_ipv4: Ipv4Addr,
 }
 
-pub enum MeshEvent<MeshPeerLink : PeerLink> {
+pub enum MeshEvent<MeshPeerLink: PeerLink> {
     /// A peer was authenticated and can be routed to.
     PeerFound(Arc<MeshPeerLink>),
 
@@ -45,7 +45,9 @@ pub trait Mesh {
     ///
     /// Returns the mesh and the receiver for its events. Dropping the mesh leaves the network.
     /// Must be called from within a tokio runtime.
-    fn join(config: MeshConfig) -> anyhow::Result<(Self, mpsc::Receiver<MeshEvent<Self::MeshPeerLink>>)>
+    fn join(
+        config: MeshConfig,
+    ) -> anyhow::Result<(Self, mpsc::Receiver<MeshEvent<Self::MeshPeerLink>>)>
     where
         Self: Sized;
 }

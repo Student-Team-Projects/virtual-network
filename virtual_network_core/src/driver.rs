@@ -1,5 +1,5 @@
-use std::net::Ipv4Addr;
 use async_trait::async_trait;
+use std::net::Ipv4Addr;
 
 #[async_trait]
 pub trait DeviceDriver: Send + Sync {

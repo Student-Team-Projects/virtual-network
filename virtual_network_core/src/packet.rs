@@ -24,10 +24,7 @@ pub fn parse_ipv4(packet: &[u8]) -> Option<Ipv4Header> {
         return None;
     }
 
-    Some(Ipv4Header {
-        source: header.source_addr(),
-        destination: header.destination_addr(),
-    })
+    Some(Ipv4Header { source: header.source_addr(), destination: header.destination_addr() })
 }
 
 #[cfg(test)]

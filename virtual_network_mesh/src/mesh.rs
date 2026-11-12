@@ -1,7 +1,7 @@
-use tokio::sync::{mpsc, oneshot};
-use virtual_network_core::{mesh::MeshEvent};
-use virtual_network_core::mesh::MeshConfig;
 use crate::link;
+use tokio::sync::{mpsc, oneshot};
+use virtual_network_core::mesh::MeshConfig;
+use virtual_network_core::mesh::MeshEvent;
 
 /// A joined network. Dropping it leaves the network.
 pub struct Mesh {
@@ -12,7 +12,9 @@ pub struct Mesh {
 impl virtual_network_core::mesh::Mesh for Mesh {
     type MeshPeerLink = link::PeerLink;
 
-    fn join(config: MeshConfig) -> anyhow::Result<(Self, mpsc::Receiver<MeshEvent<link::PeerLink>>)> {
+    fn join(
+        config: MeshConfig,
+    ) -> anyhow::Result<(Self, mpsc::Receiver<MeshEvent<link::PeerLink>>)> {
         todo!()
     }
 }

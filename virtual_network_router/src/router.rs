@@ -1,9 +1,7 @@
 use std::sync::Arc;
 use virtual_network_core::mesh::PeerLink;
 
-struct Router {
-
-}
+struct Router {}
 
 impl Router {
     fn new() -> Self {

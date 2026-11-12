@@ -35,15 +35,9 @@ impl MockDriver {
         let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
         let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
 
-        let driver = MockDriver {
-            virtual_ipv4,
-            outbound: Mutex::new(outbound_rx),
-            inbound: inbound_tx,
-        };
-        let handle = MockHandle {
-            outbound: outbound_tx,
-            inbound: inbound_rx,
-        };
+        let driver =
+            MockDriver { virtual_ipv4, outbound: Mutex::new(outbound_rx), inbound: inbound_tx };
+        let handle = MockHandle { outbound: outbound_tx, inbound: inbound_rx };
         (driver, handle)
     }
 }
@@ -51,13 +45,8 @@ impl MockDriver {
 #[async_trait]
 impl DeviceDriver for MockDriver {
     async fn recv(&self, buf: &mut [u8; RECV_BUFFER_SIZE]) -> anyhow::Result<usize> {
-        let packet = self
-            .outbound
-            .lock()
-            .await
-            .recv()
-            .await
-            .context("mock driver handle was dropped")?;
+        let packet =
+            self.outbound.lock().await.recv().await.context("mock driver handle was dropped")?;
 
         // `MockHandle::inject` should reject packets that don't fit.
         debug_assert!(packet.len() <= buf.len());
@@ -66,9 +55,7 @@ impl DeviceDriver for MockDriver {
     }
 
     async fn send(&self, packet: &[u8]) -> anyhow::Result<()> {
-        self.inbound
-            .send(packet.to_vec())
-            .context("mock driver handle was dropped")
+        self.inbound.send(packet.to_vec()).context("mock driver handle was dropped")
     }
 
     fn virtual_ipv4(&self) -> Ipv4Addr {
@@ -90,10 +77,7 @@ impl MockHandle {
             );
         }
 
-        self.outbound
-            .send(packet)
-            .ok()
-            .context("mock driver was dropped")
+        self.outbound.send(packet).ok().context("mock driver was dropped")
     }
 
     /// Waits for the next packet the driver delivered to the OS.
