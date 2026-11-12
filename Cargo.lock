@@ -799,7 +799,13 @@ dependencies = [
 name = "virtual_network_router"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
+ "etherparse",
+ "tokio",
  "virtual_network_core",
+ "virtual_network_driver",
+ "virtual_network_mesh",
 ]
 
 [[package]]
