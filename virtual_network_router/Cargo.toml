@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 virtual_network_core = { path = "../virtual_network_core" }
+tokio = { version = "1.54.1", features = ["rt", "sync"] }

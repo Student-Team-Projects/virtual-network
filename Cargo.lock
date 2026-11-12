@@ -799,6 +799,7 @@ dependencies = [
 name = "virtual_network_router"
 version = "0.1.0"
 dependencies = [
+ "tokio",
  "virtual_network_core",
 ]
 
