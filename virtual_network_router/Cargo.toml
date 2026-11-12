@@ -6,3 +6,11 @@ edition = "2024"
 [dependencies]
 virtual_network_core = { path = "../virtual_network_core" }
 tokio = { version = "1.54.1", features = ["rt", "sync"] }
+
+[dev-dependencies]
+virtual_network_driver = { path = "../virtual_network_driver" }
+virtual_network_mesh = { path = "../virtual_network_mesh" }
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+etherparse = "0.21.0"
+tokio = { version = "1.54.1", features = ["macros", "rt", "time"] }

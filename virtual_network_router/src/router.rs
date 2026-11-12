@@ -166,3 +166,228 @@ async fn receive_from_peer(
         let _ = driver.send(packet).await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+    use std::time::Duration;
+
+    use async_trait::async_trait;
+    use etherparse::PacketBuilder;
+    use virtual_network_core::router::Router as _;
+    use virtual_network_driver::mock::{MockDriver, MockHandle};
+    use virtual_network_mesh::mock_link::{MockPeerHandle, MockPeerLink};
+
+    use super::*;
+
+    const LOCAL: Ipv4Addr = Ipv4Addr::new(100, 64, 0, 1);
+    const PEER_A: Ipv4Addr = Ipv4Addr::new(100, 64, 0, 2);
+    const PEER_B: Ipv4Addr = Ipv4Addr::new(100, 64, 0, 3);
+    const OUTSIDE: Ipv4Addr = Ipv4Addr::new(8, 8, 8, 8);
+    const MULTICAST: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 1);
+
+    fn network() -> VirtualNetwork {
+        VirtualNetwork::new(Ipv4Addr::new(100, 64, 0, 0), 24).unwrap()
+    }
+
+    /// Destinations that are sent to every peer.
+    fn flood_destinations() -> [Ipv4Addr; 3] {
+        [Ipv4Addr::BROADCAST, network().broadcast(), MULTICAST]
+    }
+
+    fn packet(source: Ipv4Addr, destination: Ipv4Addr) -> Vec<u8> {
+        let builder = PacketBuilder::ipv4(source.octets(), destination.octets(), 64).udp(1, 2);
+        let mut packet = Vec::with_capacity(builder.size(5));
+        builder.write(&mut packet, b"hello").unwrap();
+        packet
+    }
+
+    /// Waits briefly for a packet; `None` means that nothing arrived.
+    async fn within<T>(next: impl Future<Output = Option<T>>) -> Option<T> {
+        tokio::time::timeout(Duration::from_millis(100), next).await.ok().flatten()
+    }
+
+    fn start() -> (Router, MockHandle) {
+        let (driver, os) = MockDriver::new(LOCAL);
+        (Router::new(Arc::new(driver), network()), os)
+    }
+
+    fn add_peer(router: &Router, ip: Ipv4Addr) -> (Arc<dyn PeerLink>, MockPeerHandle) {
+        let (link, peer) = MockPeerLink::new(ip);
+        let link: Arc<dyn PeerLink> = Arc::new(link);
+        router.add_peer_link(link.clone());
+        (link, peer)
+    }
+
+    /// A peer that never finishes sending or receiving.
+    struct StuckLink;
+
+    #[async_trait]
+    impl PeerLink for StuckLink {
+        fn virtual_ipv4(&self) -> Ipv4Addr {
+            PEER_A
+        }
+
+        fn name(&self) -> String {
+            "stuck".into()
+        }
+
+        async fn send_packet(&self, _packet: &[u8]) -> anyhow::Result<()> {
+            std::future::pending().await
+        }
+
+        async fn recv_packet(&self, _buf: &mut [u8; RECV_BUFFER_SIZE]) -> anyhow::Result<usize> {
+            std::future::pending().await
+        }
+    }
+
+    #[tokio::test]
+    async fn unicast_goes_only_to_the_destination_peer() {
+        let (router, os) = start();
+        let (_, mut a) = add_peer(&router, PEER_A);
+        let (_, mut b) = add_peer(&router, PEER_B);
+
+        let packet = packet(LOCAL, PEER_B);
+        os.inject(packet.clone()).unwrap();
+
+        assert_eq!(within(b.next_sent()).await, Some(packet));
+        assert_eq!(within(a.next_sent()).await, None);
+    }
+
+    #[tokio::test]
+    async fn broadcast_and_multicast_go_to_all_peers() {
+        let (router, os) = start();
+        let (_, mut a) = add_peer(&router, PEER_A);
+        let (_, mut b) = add_peer(&router, PEER_B);
+
+        for destination in flood_destinations() {
+            let packet = packet(LOCAL, destination);
+            os.inject(packet.clone()).unwrap();
+            assert_eq!(within(a.next_sent()).await, Some(packet.clone()));
+            assert_eq!(within(b.next_sent()).await, Some(packet));
+        }
+    }
+
+    #[tokio::test]
+    async fn drops_unroutable_and_invalid_packets_but_keeps_forwarding() {
+        let (router, os) = start();
+        let (_, mut a) = add_peer(&router, PEER_A);
+
+        os.inject(packet(LOCAL, Ipv4Addr::new(100, 64, 0, 99))).unwrap();
+        os.inject(packet(LOCAL, LOCAL)).unwrap();
+        os.inject(vec![1, 2, 3]).unwrap();
+        let valid = packet(LOCAL, PEER_A);
+        os.inject(valid.clone()).unwrap();
+
+        assert_eq!(within(a.next_sent()).await, Some(valid));
+        assert_eq!(within(a.next_sent()).await, None);
+    }
+
+    #[tokio::test]
+    async fn delivers_inbound_packets_for_us_and_drops_everything_else() {
+        let (router, mut os) = start();
+        let (_, a) = add_peer(&router, PEER_A);
+
+        a.inject(packet(PEER_B, LOCAL)).unwrap(); // spoofed source
+        a.inject(packet(PEER_A, PEER_B)).unwrap(); // meant for another peer
+        a.inject(packet(PEER_A, OUTSIDE)).unwrap(); // would be relayed to another network
+        a.inject(vec![1, 2, 3]).unwrap(); // invalid
+        let valid = packet(PEER_A, LOCAL);
+        a.inject(valid.clone()).unwrap();
+
+        assert_eq!(within(os.next_delivered()).await, Some(valid));
+        assert_eq!(within(os.next_delivered()).await, None);
+    }
+
+    #[tokio::test]
+    async fn delivers_inbound_broadcast_and_multicast() {
+        let (router, mut os) = start();
+        let (_, a) = add_peer(&router, PEER_A);
+
+        for destination in flood_destinations() {
+            let packet = packet(PEER_A, destination);
+            a.inject(packet.clone()).unwrap();
+            assert_eq!(within(os.next_delivered()).await, Some(packet));
+        }
+    }
+
+    #[tokio::test]
+    async fn ignores_peers_that_are_not_hosts_of_the_network() {
+        let (router, os) = start();
+        let outside_subnet = Ipv4Addr::new(10, 0, 0, 2);
+        let addresses = [outside_subnet, network().network(), network().broadcast()];
+        let mut peers: Vec<_> = addresses.map(|ip| add_peer(&router, ip).1).into();
+
+        os.inject(packet(LOCAL, Ipv4Addr::BROADCAST)).unwrap();
+
+        for peer in &mut peers {
+            assert_eq!(within(peer.next_sent()).await, None);
+        }
+    }
+
+    #[tokio::test]
+    async fn removed_peer_neither_receives_nor_sends() {
+        let (router, mut os) = start();
+        let (link, mut a) = add_peer(&router, PEER_A);
+        router.remove_peer_link(link);
+
+        os.inject(packet(LOCAL, PEER_A)).unwrap();
+        os.inject(packet(LOCAL, Ipv4Addr::BROADCAST)).unwrap();
+        a.inject(packet(PEER_A, LOCAL)).ok();
+
+        assert_eq!(within(a.next_sent()).await, None);
+        assert_eq!(within(os.next_delivered()).await, None);
+    }
+
+    #[tokio::test]
+    async fn removing_a_stale_link_keeps_the_active_one() {
+        let (router, os) = start();
+        let (_, mut a) = add_peer(&router, PEER_A);
+        let (stale, _stale_handle) = MockPeerLink::new(PEER_A);
+        router.remove_peer_link(Arc::new(stale));
+
+        let packet = packet(LOCAL, PEER_A);
+        os.inject(packet.clone()).unwrap();
+
+        assert_eq!(within(a.next_sent()).await, Some(packet));
+    }
+
+    #[tokio::test]
+    async fn new_link_replaces_the_old_one_with_the_same_ip() {
+        let (router, os) = start();
+        let (_, mut old) = add_peer(&router, PEER_A);
+        let (_, mut new) = add_peer(&router, PEER_A);
+
+        let packet = packet(LOCAL, PEER_A);
+        os.inject(packet.clone()).unwrap();
+
+        assert_eq!(within(new.next_sent()).await, Some(packet));
+        assert_eq!(within(old.next_sent()).await, None);
+    }
+
+    #[tokio::test]
+    async fn slow_peer_does_not_block_other_peers() {
+        let (router, os) = start();
+        router.add_peer_link(Arc::new(StuckLink));
+        let (_, mut b) = add_peer(&router, PEER_B);
+
+        for _ in 0..PEER_SEND_QUEUE_CAPACITY * 2 {
+            os.inject(packet(LOCAL, PEER_A)).unwrap();
+        }
+        let packet = packet(LOCAL, PEER_B);
+        os.inject(packet.clone()).unwrap();
+
+        assert_eq!(within(b.next_sent()).await, Some(packet));
+    }
+
+    #[tokio::test]
+    async fn dropping_the_router_stops_forwarding() {
+        let (router, os) = start();
+        let (_, mut a) = add_peer(&router, PEER_A);
+        drop(router);
+
+        os.inject(packet(LOCAL, PEER_A)).ok();
+
+        assert_eq!(within(a.next_sent()).await, None);
+    }
+}
