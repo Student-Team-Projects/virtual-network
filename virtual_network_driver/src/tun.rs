@@ -28,7 +28,11 @@ impl TunDriver {
     ///
     /// The kernel routes every destination inside `network` into this
     /// interface.
-    pub fn new(name: &str, ipv4_address: Ipv4Addr, network: &VirtualNetwork) -> anyhow::Result<Self> {
+    pub fn new(
+        name: &str,
+        ipv4_address: Ipv4Addr,
+        network: &VirtualNetwork,
+    ) -> anyhow::Result<Self> {
         ensure!(
             !name.is_empty() && name.len() <= MAX_IFNAME_LEN,
             "interface name {name:?} must be 1..={MAX_IFNAME_LEN} bytes"
@@ -67,11 +71,7 @@ impl DeviceDriver for TunDriver {
         // on the interface; the trait only promises IPv4, so skip anything
         // that isn't a valid IPv4 packet.
         loop {
-            let len = self
-                .device
-                .recv(buf)
-                .await
-                .context("failed to read from TUN interface")?;
+            let len = self.device.recv(buf).await.context("failed to read from TUN interface")?;
 
             if parse_ipv4(&buf[..len]).is_some() {
                 return Ok(len);
@@ -83,21 +83,10 @@ impl DeviceDriver for TunDriver {
         // Without packet info, Linux picks the protocol from the version
         // nibble, so this is what stops a peer from injecting IPv6 or
         // malformed packets.
-        ensure!(
-            parse_ipv4(packet).is_some(),
-            "refusing to write an invalid IPv4 packet to TUN"
-        );
+        ensure!(parse_ipv4(packet).is_some(), "refusing to write an invalid IPv4 packet to TUN");
 
-        let written = self
-            .device
-            .send(packet)
-            .await
-            .context("failed to write to TUN interface")?;
-        ensure!(
-            written == packet.len(),
-            "short write to TUN: {written}/{} bytes",
-            packet.len()
-        );
+        let written = self.device.send(packet).await.context("failed to write to TUN interface")?;
+        ensure!(written == packet.len(), "short write to TUN: {written}/{} bytes", packet.len());
         Ok(())
     }
 

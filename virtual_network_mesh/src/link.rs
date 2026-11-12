@@ -3,9 +3,7 @@ use std::net::Ipv4Addr;
 use async_trait::async_trait;
 use virtual_network_core::RECV_BUFFER_SIZE;
 
-pub struct PeerLink {
-
-}
+pub struct PeerLink {}
 
 #[async_trait]
 impl virtual_network_core::mesh::PeerLink for PeerLink {
