@@ -1,4 +1,13 @@
 {
+  "editor.formatOnSave": true,
+  "editor.rulers": [
+    100
+  ],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
   "cSpell.words": [
     "Kademlia",
     "multiaddress"
